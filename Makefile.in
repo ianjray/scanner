@@ -1,0 +1,66 @@
+.POSIX:
+.SUFFIXES:
+.SUFFIXES: .cpp .o .uto
+
+VERSION    = 1.0.0
+
+CXX        = @CXX@
+CCOV       = gcov
+CFLAGS     = @CFLAGS@
+CFLAGS_COV = @CFLAGS_COV@
+CFLAGS_SAN = @CFLAGS_SAN@
+INCLUDEDIR = @PREFIX@/include
+LD         = @LD@
+LIBDIR     = @PREFIX@/lib
+PREFIX     = @PREFIX@
+
+.PHONY: all
+all: libscanner.a scanner.coverage
+
+libscanner.a: scanner.o
+	$(LD) -r $^ -o $@
+
+.cpp.o:
+	$(CXX) $(CFLAGS) -c $^ -o $@
+
+.cpp.uto:
+	$(CXX) $(CFLAGS) $(CFLAGS_COV) $(CFLAGS_SAN) -c $^ -o $@
+
+scanner.coverage: scanner.uto test_scanner.cpp
+	$(CXX) $(CFLAGS) $(CFLAGS_COV) $(CFLAGS_SAN) $^ -o $@
+	./$@
+	$(CCOV) scanner.cpp
+	! grep "#####" scanner.cpp.gcov |grep -ve "// UNREACHABLE$$"
+
+libscanner.pc:
+	( echo 'Name: libscanner' ;\
+	echo 'Version: $(VERSION)' ;\
+	echo 'Description: C++ lexeme scanner' ;\
+	echo 'prefix=$(PREFIX)' ;\
+	echo 'exec_prefix=$${prefix}' ;\
+	echo 'includedir=$${prefix}/include' ;\
+	echo 'libdir=$${prefix}/lib' ;\
+	echo 'Cflags: -I$${includedir}' ;\
+	echo 'Libs: -L$${libdir} -lscanner' ) > $@
+
+.PHONY: install
+install: scanner.hpp libscanner.a libscanner.pc
+	mkdir -p $(INCLUDEDIR)/libscanner
+	mkdir -p $(LIBDIR)/pkgconfig
+	install -m644 scanner.hpp $(INCLUDEDIR)/libscanner/scanner.hpp
+	install -m644 libscanner.a $(LIBDIR)/libscanner.a
+	install -m644 libscanner.pc $(LIBDIR)/pkgconfig/libscanner.pc
+
+.PHONY: uninstall
+uninstall:
+	rm -f $(INCLUDEDIR)/libscanner/scanner.hpp
+	rm -f $(LIBDIR)/libscanner.a
+	rm -f $(LIBDIR)/pkgconfig/libscanner.pc
+
+.PHONY: clean
+clean:
+	rm -rf libscanner.a libscanner.pc *.o *.uto *.gc?? *.coverage
+
+.PHONY: distclean
+distclean: clean
+	rm -f Makefile config.status
